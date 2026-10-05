@@ -1,0 +1,32 @@
+<!--
+  Paste this <intent-filter> inside the <activity android:name=".MainActivity">
+  block of android/app/src/main/AndroidManifest.xml, alongside the existing
+  LAUNCHER intent-filter (don't replace it — add this as a second one).
+
+  Replace YOURDOMAIN.com with the real domain of the platform's website
+  (the one course links are shared from, e.g. the Vercel domain once it's
+  on your own custom domain).
+-->
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data
+        android:scheme="https"
+        android:host="YOURDOMAIN.com"
+        android:pathPrefix="/course" />
+</intent-filter>
+
+<!--
+  For autoVerify to actually work, host this file at:
+  https://YOURDOMAIN.com/.well-known/assetlinks.json
+
+  [{
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.YOURCOMPANY.masar",   // must match applicationId in android/app/build.gradle
+      "sha256_cert_fingerprints": ["YOUR_APP_SIGNING_SHA256_FINGERPRINT"]
+    }
+  }]
+-->

@@ -1,0 +1,83 @@
+name: Build and Release Fahmani APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.5"
+          channel: stable
+          cache: true
+
+      - name: Configure Flutter Android
+        run: echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Record resolved Firebase versions
+        run: |
+          python3 - <<'PY'
+          import re
+          s = open('pubspec.lock').read()
+          names = ['firebase_core','firebase_core_platform_interface','firebase_auth',
+                   'firebase_auth_platform_interface','cloud_firestore','firebase_messaging']
+          out = []
+          for n in names:
+              m = re.search(r'\n  ' + n + r':\n(?:    .*\n)*?    version: "([^"]+)"', s)
+              out.append(n.replace('firebase_','fb_') + '=' + (m.group(1) if m else '?'))
+          open('lib/services/build_versions.dart','w').write(
+              "const String kFirebaseVersions = '" + ', '.join(out) + "';\n")
+          print(', '.join(out))
+          PY
+
+      - name: Analyze Dart code
+        run: flutter analyze
+        continue-on-error: true
+
+      - name: Build release APK
+        run: |
+          flutter build apk --release --no-shrink \
+            --build-number "${{ github.run_number }}" \
+            --build-name "1.0.${{ github.run_number }}"
+
+      - name: Verify APK
+        run: |
+          ls -lh build/app/outputs/flutter-apk/
+          test -f build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fahmani-release-apk-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Fahmani 1.0.${{ github.run_number }}
+          generate_release_notes: true
+          files: build/app/outputs/flutter-apk/app-release.apk

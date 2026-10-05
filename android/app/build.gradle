@@ -1,0 +1,66 @@
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+}
+
+// Jitsi 11.6.0 bundles its own RTSP Media3 classes through react-native-video.
+// Flutter video_player also brings androidx.media3:media3-exoplayer-rtsp, which
+// causes duplicate RtspMediaSource classes during release builds. The app does
+// not use Media3 RTSP directly, so exclude the duplicate module globally.
+configurations.all {
+    exclude group: "androidx.media3", module: "media3-exoplayer-rtsp"
+}
+
+dependencies {
+    // Firebase native bootstrap is used by MainActivity on Android.
+    // The BOM supplies the Firebase SDK version so firebase-app never
+    // resolves as com.google.firebase:firebase-app:.
+    implementation platform("com.google.firebase:firebase-bom:33.5.1")
+    implementation "com.google.firebase:firebase-common"
+
+    // Giphy SDK 2.3.17 references Kotlin Parcelize runtime classes during R8.
+    // Keep the runtime explicitly available to release builds.
+    implementation "org.jetbrains.kotlin:kotlin-parcelize-runtime:1.9.24"
+
+    // flutter_local_notifications requires Java 8+ core library desugaring.
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
+}
+
+android {
+    namespace "com.Fahmani"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.Fahmani"
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+            // R8 shrinking can strip FlutterFire's platform-channel classes in
+            // release builds and cause "channel-error" on Firebase startup.
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+flutter {
+    source "../.."
+}

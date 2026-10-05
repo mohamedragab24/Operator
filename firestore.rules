@@ -1,0 +1,274 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // تعريف الصلاحيات الإدارية العليا (المسؤول الماستر)
+    function isMasterAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == "mohamed76y@gmail.com" || 
+        request.auth.uid == "ee87e6bwIbaSb5JoVLl4dcrHAjn2" ||
+        request.auth.token.email == "mohamjedminijd2006@gmail.com" || request.auth.token.email == "mohamedmini2006@gamil.com"
+      );
+    }
+
+    // تعريف صلاحيات المسؤولين العامين
+    function isAdmin() {
+      return request.auth != null && (
+        isMasterAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+      );
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // السماح للمسؤولين بالوصول الكامل والقراءة والكتابة لكافة السجلات
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // قواعد المستخدمين
+    match /users/{userId} {
+      allow read: if true;
+      // الرقم التعريفي (publicId) يُنشأ من الخادم فقط ولا يمكن للمستخدم تعديله.
+      allow create: if isAdmin() || (isOwner(userId) && !('publicId' in request.resource.data));
+      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.get('publicId', null) == resource.data.get('publicId', null));
+      allow delete: if isOwner(userId) || isAdmin();
+      match /groupMemberships/{gid} { allow read: if isOwner(userId) || isAdmin(); allow write: if false; }
+      match /followers/{followerId} { allow read: if true; allow create, delete: if isOwner(followerId) || isAdmin(); }
+      match /following/{followingId} { allow read: if true; allow create, delete: if isOwner(userId) || isAdmin(); }
+
+      match /transactions/{txId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // المحادثات المباشرة والتواصل التلقائي
+    match /direct_chats/{chatId} {
+      allow read, update: if isAdmin() || (isSignedIn() && (request.auth.uid in resource.data.participants));
+      allow create: if isSignedIn() && (
+        isAdmin() || request.resource.data.instructorId == request.auth.uid
+      );
+
+      match /messages/{msgId} {
+        allow read, create: if isAdmin() || (isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/direct_chats/$(chatId)).data.participants));
+      }
+    }
+
+
+    match /scheduledNotifications/{id} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /adminLogs/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /users/{userId}/fcmTokens/{tokenId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /users/{userId}/notifications/{notificationId} {
+      allow read, update: if isOwner(userId) || isAdmin();
+      allow create: if isAdmin();
+    }
+
+    // صلاحية الشراء: القراءة للمستخدم صاحب الحساب فقط، والكتابة للخادم/الأدمن فقط.
+    match /purchases/{purchaseId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId}/purchases/{courseId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // الإشعارات الفورية
+    match /notifications/{id} { 
+      allow create: if isSignedIn() || isAdmin();
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+    }
+
+    // الاستفهامات والطلبات التعليمية
+    match /istifhams/{id} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() || isAdmin();
+
+      match /offers/{offerId} {
+        allow create: if isSignedIn();
+        allow read: if true;
+        allow update: if isSignedIn() || isAdmin();
+      }
+    }
+
+    // الإعدادات العامة والأصول
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // الأقسام والتصنيفات
+    match /categories/{id} { 
+      allow read: if true; 
+      allow write: if isAdmin();
+    }
+
+    // المحادثات العائمة للدعم الفني
+    match /floatingChats/{chatId} {
+      allow create: if true;
+      allow read: if isAdmin() || (isSignedIn() && chatId == request.auth.uid);
+      allow update: if isAdmin() || (isSignedIn() && chatId == request.auth.uid);
+
+      match /messages/{msgId} {
+        allow read, create: if true;
+      }
+    }
+
+    // معرض الأعمال
+    match /portfolio/{id} { 
+      allow read: if true; 
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.mufhemId);
+    }
+
+    // الكورسات الجاهزة والدروس والاشتراكات
+    match /courses/{courseId} {
+      allow read: if true;
+
+      // إنشاء الكورس مسموح للمفهم المسجل فقط (أو للمسؤول).
+      // نقبل role=mufhem أو mode=mofahhem لأن المنصة القديمة والجديدة
+      // تستخدمان الحقلين في حساب المستخدم.
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (
+          request.resource.data.instructorId == request.auth.uid &&
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "mufhem" ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.mode == "mofahhem" ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "teacher"
+          )
+        )
+      );
+
+      allow update, delete: if isAdmin() || (
+        isSignedIn() &&
+        request.auth.uid == resource.data.instructorId &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "mufhem" ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.mode == "mofahhem" ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "teacher"
+        )
+      );
+
+      match /lessons/{lessonId} {
+        allow read: if true;
+
+        // Parent course is already saved before lesson writes, so use get()
+        // instead of getAfter() for reliable permission checks.
+        allow write: if isAdmin() || (
+          isSignedIn() &&
+          request.auth.uid ==
+            get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId
+        );
+      }
+    }
+
+    match /course_enrollments/{enrollmentId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.studentId || request.auth.uid == resource.data.instructorId || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (request.auth.uid == resource.data.studentId || isAdmin());
+    }
+
+    // الوظائف والتوظيف
+    match /jobs/{jobId} {
+      allow read: if true;
+      
+      match /applications/{appId} {
+        allow create: if true;
+        allow read: if isAdmin();
+      }
+    }
+
+    // تذاكر الدعم الفني
+    match /supportTickets/{ticketId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin() || (isSignedIn() && (resource == null || request.auth.uid == resource.data.userId));
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+
+      match /messages/{msgId} {
+        allow read, create: if isSignedIn() || isAdmin();
+      }
+    }
+
+    // الطعون والسحب المالي
+    match /appeals/{id} { allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId); }
+    match /payoutRequests/{id} { allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId); }
+    match /activityLogs/{logId} {
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.uid;
+      allow read: if isAdmin();
+    }
+
+
+    // ===== المجموعات: الكتابة من الخادم (Cloud Functions) فقط =====
+    match /publicIds/{id} { allow read, write: if false; }
+
+    match /groups/{gid} {
+      allow read: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        exists(/databases/$(database)/documents/groups/$(gid)/members/$(request.auth.uid))
+      );
+      allow write: if false;
+
+      match /members/{uid} {
+        allow read: if isSignedIn() && (uid == request.auth.uid ||
+          get(/databases/$(database)/documents/groups/$(gid)).data.ownerUid == request.auth.uid);
+        allow write: if false;
+      }
+
+      // المحتوى يختفي عند التجميد (status != active) حتى عن المُفهم
+      match /{kind}/{docId} {
+        allow read: if isSignedIn() && kind in ['videos', 'files', 'quizzes', 'sessions', 'recordings'] &&
+          get(/databases/$(database)/documents/groups/$(gid)).data.status == 'active' && (
+            get(/databases/$(database)/documents/groups/$(gid)).data.ownerUid == request.auth.uid ||
+            exists(/databases/$(database)/documents/groups/$(gid)/members/$(request.auth.uid)));
+        allow write: if false;
+      }
+
+      match /quizzes/{qid}/submissions/{uid} {
+        allow read: if isSignedIn() && (uid == request.auth.uid ||
+          get(/databases/$(database)/documents/groups/$(gid)).data.ownerUid == request.auth.uid);
+        // المُفهم يصحح المقالي ويضع الدرجة
+        allow update: if isSignedIn() &&
+          get(/databases/$(database)/documents/groups/$(gid)).data.ownerUid == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['essayScore', 'status', 'feedback']);
+        allow create, delete: if false;
+      }
+      match /usage/{u} { allow read, write: if false; }
+    }
+
+    match /groupInvites/{id} {
+      allow read: if isSignedIn() && (resource.data.toUid == request.auth.uid || resource.data.ownerUid == request.auth.uid);
+      allow write: if false;
+    }
+
+    // فواتير المجموعات: تظهر للمُفهم صاحب المجموعة وللإدارة فقط
+    match /groupBills/{id} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+  }
+}
