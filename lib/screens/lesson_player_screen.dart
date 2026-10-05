@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 import '../services/firestore_service.dart';
 import '../services/video_service.dart';
+import '../services/api_functions.dart' show FirebaseFunctionsException;
 import '../services/r2_worker_service.dart';
 import '../models/lesson.dart';
 import '../theme/app_theme.dart';
@@ -70,18 +71,17 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
         videoUrl = signed.url;
         expiresAt = signed.expiresAt;
       } catch (e) {
-        // The Cloud Function is unreachable: read the video straight from Cloudflare R2,
-        // only when the account owns the course (or the lesson is a free preview).
-        if (e.toString().contains('permission-denied')) rethrow;
+        // الخادم رفض أو غير متاح: نقرأ من Cloudflare R2 مباشرة، فقط إذا كان الحساب مشتريًا
+        // للكورس (من Firestore) أو الدرس معاينة مجانية.
         final fallback = await _r2FallbackUrl();
         if (fallback == null) rethrow;
         videoUrl = fallback;
       }
-      final savedSeconds = await _firestore.getLessonProgressSeconds(
-        _uid,
-        widget.courseId,
-        widget.lessonId,
-      );
+      // قراءة التقدّم اختيارية: فشلها لا يجب أن يمنع التشغيل ولا يظهر كأن الكورس غير مشترى.
+      int savedSeconds = 0;
+      try {
+        savedSeconds = await _firestore.getLessonProgressSeconds(_uid, widget.courseId, widget.lessonId);
+      } catch (_) {}
       final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
       await controller.initialize();
 
@@ -112,13 +112,13 @@ class _LessonPlayerScreenState extends State<LessonPlayerScreen> {
           _load,
         );
       }
-      _progressTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveProgress());
+      _progressTimer = Timer.periodic(const Duration(seconds: 10), (_) { _saveProgress().catchError((_) {}); });
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString().contains('permission-denied')
+          _error = (e is FirebaseFunctionsException && e.code == 'permission-denied')
               ? 'هذا الكورس غير مشترى على هذا الحساب.'
-              : 'تعذر تحميل الفيديو. حاول مرة أخرى.';
+              : 'تعذر تحميل الفيديو. حاول مرة أخرى.\n(${e.toString().split('\n').first})';
           _loading = false;
         });
       }

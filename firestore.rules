@@ -144,6 +144,28 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.mufhemId);
     }
 
+
+    // ===== تعلّم الطالب: التقدّم والعلامات والملاحظات (كل مستخدم لبياناته فقط) =====
+    match /progress/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+    match /bookmarks/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /notes/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /contentReports/{id} {
+      allow create: if isSignedIn();
+    }
+
     // الكورسات الجاهزة والدروس والاشتراكات
     match /courses/{courseId} {
       allow read: if true;
