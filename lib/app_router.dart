@@ -14,6 +14,11 @@ import 'screens/meeting_screen.dart';
 import 'screens/notifications_tab.dart';
 import 'screens/admin_control_center_screen.dart';
 import 'screens/verify_email_screen.dart';
+import 'screens/group_detail_screen.dart';
+import 'screens/group_pdf_screen.dart';
+import 'screens/group_video_screen.dart';
+import 'screens/group_quiz_screen.dart';
+import 'screens/lecture_recordings_screen.dart';
 import 'services/firebase_bootstrap.dart';
 
 GoRouter buildRouter() {
@@ -76,6 +81,14 @@ GoRouter buildRouter() {
       GoRoute(path: '/admin', builder: (context, state) => const AdminDashboardScreen()),
       GoRoute(path: '/admin-control', builder: (context, state) => const AdminControlCenterScreen()),
       GoRoute(path: '/meeting/:requestId', builder: (context, state) => MeetingScreen(requestId: state.pathParameters['requestId']!)),
+      // المجموعات: كل المحتوى والاجتماعات تُفتح داخل التطبيق
+      GoRoute(path: '/group/:gid', builder: (context, state) => GroupDetailScreen(groupId: state.pathParameters['gid']!)),
+      GoRoute(path: '/group/:gid/session/:sid', builder: (context, state) => GroupSessionScreen(groupId: state.pathParameters['gid']!, sessionId: state.pathParameters['sid']!)),
+      GoRoute(path: '/group/:gid/pdf/:fid', builder: (context, state) => GroupPdfScreen(groupId: state.pathParameters['gid']!, fileId: state.pathParameters['fid']!, title: state.uri.queryParameters['title'] ?? 'ملف PDF')),
+      GoRoute(path: '/group/:gid/video/:vid', builder: (context, state) => GroupVideoScreen(groupId: state.pathParameters['gid']!, kind: state.uri.queryParameters['kind'] ?? 'videos', itemId: state.pathParameters['vid']!, title: state.uri.queryParameters['title'] ?? 'فيديو')),
+      GoRoute(path: '/group/:gid/quiz/:qid', builder: (context, state) => GroupQuizScreen(groupId: state.pathParameters['gid']!, quizId: state.pathParameters['qid']!)),
+      GoRoute(path: '/admin/recordings', builder: (context, state) => const LectureRecordingsScreen()),
+      GoRoute(path: '/admin/recordings/:rid', builder: (context, state) => AdminRecordingPlayerScreen(recordingId: state.pathParameters['rid']!, title: state.uri.queryParameters['title'] ?? 'تسجيل')),
       GoRoute(path: '/change-password', builder: (context, state) => const ChangePasswordScreen()),
       GoRoute(path: '/account-security', builder: (context, state) => const AccountSecurityScreen()),
       GoRoute(

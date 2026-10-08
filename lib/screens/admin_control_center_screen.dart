@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/api_functions.dart';
 import 'package:flutter/material.dart';
@@ -198,7 +199,10 @@ class _AdminControlCenterScreenState extends State<AdminControlCenterScreen> {
   Widget build(BuildContext context) {
     final pages = [_meetings(), _courses(), _mufahems(), _users(), _notifications(), _admins()];
     return Scaffold(
-      appBar: AppBar(title: const Text('مركز الاعتماد الموحد')),
+      appBar: AppBar(
+        title: const Text('مركز الاعتماد الموحد'),
+        actions: [IconButton(tooltip: 'تسجيلات المحاضرات', icon: const Icon(Icons.video_library_outlined), onPressed: () => GoRouter.of(context).push('/admin/recordings'))],
+      ),
       body: Column(
         children: [
           SingleChildScrollView(

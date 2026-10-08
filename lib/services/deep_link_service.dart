@@ -44,6 +44,21 @@ class DeepLinkService {
       return;
     }
 
+    // المجموعات: fahmny://group/GID  |  fahmny://group/GID/session/SID  |  https://DOMAIN/groups/GID
+    // (للروابط المخصصة يكون "group" هو الـ host والباقي في pathSegments)
+    final gSegs = (uri.scheme.toLowerCase() == 'fahmny' && (host == 'group' || host == 'groups'))
+        ? uri.pathSegments
+        : (uri.pathSegments.isNotEmpty && (uri.pathSegments.first == 'group' || uri.pathSegments.first == 'groups') ? uri.pathSegments.sublist(1) : <String>[]);
+    if (gSegs.isNotEmpty) {
+      final gid = gSegs.first;
+      if (gSegs.length >= 3 && gSegs[1] == 'session') {
+        router.push('/group/$gid/session/${gSegs[2]}');
+      } else {
+        router.push('/group/$gid');
+      }
+      return;
+    }
+
     final segments = uri.pathSegments;
     final meetingIdx = segments.indexWhere((s) => s == 'meeting' || s == 'meetings');
     if (meetingIdx != -1 && meetingIdx + 1 < segments.length) {
