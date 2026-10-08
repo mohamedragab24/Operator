@@ -44,6 +44,25 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
+      - name: Patch pdfx for this Flutter version
+        run: |
+          FV=$(flutter --version --machine | python3 -c "import sys,json;print(json.load(sys.stdin)['frameworkVersion'])")
+          echo "Flutter $FV"
+          python3 - "$FV" <<'PY'
+          import sys, glob, os
+          maj, minr = [int(x) for x in sys.argv[1].split('.')[:2]]
+          # pdfx 2.9.x كُتب لـ Flutter 3.27+ (onSurfaceAvailable/onSurfaceCleanup)؛ على الإصدارات الأقدم الأسماء onSurfaceCreated/onSurfaceDestroyed
+          if (maj, minr) >= (3, 27):
+              print('Flutter >= 3.27: no patch needed'); raise SystemExit
+          for f in glob.glob(os.path.expanduser('~/.pub-cache/hosted/pub.dev/pdfx-*/android/src/main/kotlin/io/scer/pdfx/Messages.kt')):
+              s = open(f, encoding='utf-8').read()
+              t = s.replace('onSurfaceAvailable', 'onSurfaceCreated').replace('onSurfaceCleanup', 'onSurfaceDestroyed')
+              if t != s:
+                  open(f, 'w', encoding='utf-8').write(t); print('patched', f)
+              else:
+                  print('already patched', f)
+          PY
+
       - name: Record resolved Firebase versions
         run: |
           python3 - <<'PY'
