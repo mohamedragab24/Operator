@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../services/groups_service.dart';
 import '../services/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/api_functions.dart';
+import '../services/error_center.dart';
 
 /// داخل المجموعة: الفيديوهات، ملفات PDF، الاختبارات، الجلسات المباشرة والمسجلة. كل شيء يُفتح داخل التطبيق.
 class GroupDetailScreen extends StatelessWidget {
@@ -182,7 +184,8 @@ class _GroupSessionScreenState extends State<GroupSessionScreen> {
         avatar: profile?.photoUrl,
       );
       if (mounted) setState(() => _recordHint = hint);
-    } catch (e) {
+    } catch (e, st) {
+      if (e is! FirebaseFunctionsException) ErrorCenter.instance.report(e, where: 'دخول الجلسة المباشرة', stack: st);
       if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _joining = false);

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
 import 'api_functions.dart';
+import 'error_center.dart';
 
 /// رابط مشاهدة مؤقت + بيانات العلامة المائية (من الخادم بعد التحقق من العضوية).
 class GroupMedia {
@@ -85,7 +86,12 @@ class GroupsService {
       },
       userInfo: JitsiMeetUserInfo(displayName: displayName, email: email, avatar: avatar),
     );
-    await JitsiMeet().join(options);
+    await JitsiMeet().join(
+      options,
+      JitsiMeetEventListener(
+        conferenceTerminated: (url, error) => ErrorCenter.instance.reportMeetingError(error, where: 'الجلسة المباشرة'),
+      ),
+    );
     return moderator && record;
   }
 }

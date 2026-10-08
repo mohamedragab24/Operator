@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../services/groups_service.dart';
 import '../services/api_functions.dart' show FirebaseFunctionsException;
+import '../services/error_center.dart';
 
 /// حل اختبار المجموعة داخل التطبيق (الاختياري يُصحَّح تلقائيًا، والمقالي يراجعه المُفهم).
 class GroupQuizScreen extends StatefulWidget {
@@ -36,8 +37,9 @@ class _GroupQuizScreenState extends State<GroupQuizScreen> {
       _answers = List<dynamic>.filled(qs.length, null);
       for (var i = 0; i < qs.length; i++) { _ctrls.add(TextEditingController()); }
       if (mounted) setState(() => _quiz = q);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'تعذر تحميل الاختبار');
+    } catch (e, st) {
+      final err = ErrorCenter.instance.report(e, where: 'تحميل الاختبار', stack: st);
+      if (mounted) setState(() => _error = err.title == 'حدث خطأ غير متوقع' ? 'تعذر تحميل الاختبار' : err.title);
     }
   }
 
@@ -60,8 +62,8 @@ class _GroupQuizScreenState extends State<GroupQuizScreen> {
       if (mounted) setState(() => _result = r);
     } on FirebaseFunctionsException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message ?? 'تعذر إرسال الاختبار')));
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر إرسال الاختبار')));
+    } catch (e, st) {
+      ErrorCenter.instance.report(e, where: 'إرسال الاختبار', stack: st);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

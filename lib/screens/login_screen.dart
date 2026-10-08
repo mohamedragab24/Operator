@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/firebase_bootstrap.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
+import '../services/error_center.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -148,14 +149,20 @@ class _LoginScreenState extends State<LoginScreen> {
           message = 'تعذر تسجيل الدخول. رمز الخطأ: ${e.code}';
       }
 
+      // الأخطاء التقنية (إعداد Firebase/الشبكة) تظهر فورًا بسببها والمطلوب لحلها
+      if (const ['firebase-not-ready', 'operation-not-allowed', 'app-not-authorized', 'internal-error', 'unknown', 'user-null'].contains(e.code) ||
+          message.startsWith('تعذر تسجيل الدخول')) {
+        ErrorCenter.instance.report(e, where: 'تسجيل الدخول');
+      }
       setState(() {
         _error = message;
       });
-    } catch (e) {
+    } catch (e, st) {
       if (!mounted) return;
 
+      final err = ErrorCenter.instance.report(e, where: 'تسجيل الدخول', stack: st);
       setState(() {
-        _error = 'تعذر إكمال تسجيل الدخول. تفاصيل الخطأ: $e';
+        _error = err.title;
       });
     } finally {
       if (mounted) {

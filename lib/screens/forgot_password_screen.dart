@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../services/error_center.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -21,8 +23,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     try {
       await _auth.sendPasswordReset(_emailCtrl.text.trim());
       setState(() => _sent = true);
-    } catch (_) {
-      // Keep the message generic so we don't reveal whether an email exists.
+    } catch (e, st) {
+      // الرسالة عامة حتى لا نكشف وجود البريد، لكن أخطاء الإعداد/الشبكة تظهر للمطوّر والمستخدم
+      if (!(e is FirebaseAuthException && (e.code == 'user-not-found' || e.code == 'invalid-email'))) {
+        ErrorCenter.instance.report(e, where: 'استعادة كلمة المرور', stack: st);
+      }
       setState(() => _sent = true);
     } finally {
       setState(() => _loading = false);

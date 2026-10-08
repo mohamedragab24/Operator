@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:jitsi_meet_flutter_sdk/jitsi_meet_flutter_sdk.dart';
 import 'api_functions.dart';
 import '../models/meeting.dart';
+import 'error_center.dart';
 
 class MeetingService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -24,7 +25,10 @@ class MeetingService {
     try {
       final result = await FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable('getJaasMeetingToken').call({'room': room});
       token = result.data['token']?.toString();
-    } catch (_) {}
+    } catch (e, st) {
+      // نكمل الدخول، لكن بدون توكن لن يعمل التسجيل/الإشراف: نُظهر السبب فورًا
+      ErrorCenter.instance.report(e, where: 'توكن الاجتماع (JaaS)', stack: st);
+    }
     final options = JitsiMeetConferenceOptions(
       room: '$_jaasRoomPrefix${meeting.id}',
       token: token,
@@ -42,6 +46,11 @@ class MeetingService {
       },
       userInfo: JitsiMeetUserInfo(displayName: displayName, email: email, avatar: avatar),
     );
-    await _jitsi.join(options);
+    await _jitsi.join(
+      options,
+      JitsiMeetEventListener(
+        conferenceTerminated: (url, error) => ErrorCenter.instance.reportMeetingError(error, where: 'المحاضرة'),
+      ),
+    );
   }
 }

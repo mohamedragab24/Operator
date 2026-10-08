@@ -12,6 +12,7 @@ import 'services/screen_protection_service.dart';
 import 'services/app_update_service.dart';
 import 'services/notification_service.dart';
 import 'services/firebase_bootstrap.dart';
+import 'services/error_center.dart';
 
 
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -29,13 +30,19 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // كل خطأ غير ملتقط (Flutter / async / zone) يظهر فورًا في بطاقة حمراء بسببه والمطلوب لحله.
+  await runZonedGuarded<Future<void>>(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    ErrorCenter.instance.install();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // The UI must never wait for Firebase. Start the Firebase connection in
-  // the background and let the app open immediately.
-  runApp(const MasarApp());
-  unawaited(FirebaseBootstrap.instance.start());
+    // The UI must never wait for Firebase. Start the Firebase connection in
+    // the background and let the app open immediately.
+    runApp(const MasarApp());
+    unawaited(FirebaseBootstrap.instance.start());
+  }, (error, stack) {
+    ErrorCenter.instance.report(error, stack: stack, where: 'خطأ غير متوقع');
+  });
 }
 
 class MasarApp extends StatefulWidget {
@@ -71,6 +78,14 @@ class _MasarAppState extends State<MasarApp> {
     screenProtection.shouldBlockContent.listen((block) {
       if (mounted) setState(() => _blockContent = block);
     });
+    // فشل تشغيل Firebase يظهر فورًا بسببه (بدل أن يبقى التطبيق بلا بيانات بصمت)
+    FirebaseBootstrap.instance.error.addListener(_onBootstrapError);
+  }
+
+  void _onBootstrapError() {
+    final msg = FirebaseBootstrap.instance.error.value;
+    if (msg == null || msg.isEmpty) return;
+    ErrorCenter.instance.report(StateError(msg), where: 'تشغيل Firebase');
   }
 
   Future<void> _initMessagingSafely() async {
@@ -152,6 +167,7 @@ class _MasarAppState extends State<MasarApp> {
 
   @override
   void dispose() {
+    FirebaseBootstrap.instance.error.removeListener(_onBootstrapError);
     deepLinkService.dispose();
     screenProtection.dispose();
     super.dispose();
@@ -197,6 +213,8 @@ class _MasarAppState extends State<MasarApp> {
                     ],
                   ),
                 ),
+              // بطاقات الأخطاء: تظهر فوق أي شاشة بسبب الخطأ والمطلوب لحله
+              const ErrorOverlay(),
             ],
           ),
         );

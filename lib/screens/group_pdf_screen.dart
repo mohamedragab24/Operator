@@ -8,6 +8,7 @@ import 'package:pdfx/pdfx.dart';
 import '../services/groups_service.dart';
 import '../services/screen_protection_service.dart';
 import '../theme/app_theme.dart';
+import '../services/error_center.dart';
 
 enum _Tool { browse, pen, highlight, eraser, text }
 
@@ -242,8 +243,10 @@ class _PageState {
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
-    } catch (_) {
+    } catch (e, st) {
       _dirty = true;
+      // غالبًا قواعد Firestore (pdfNotes) غير منشورة: يظهر السبب والحل فورًا بدل فقدان الملاحظات بصمت
+      ErrorCenter.instance.report(e, where: 'حفظ ملاحظات الـ PDF', stack: st);
     } finally {
       onSaving(-1);
     }
